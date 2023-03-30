@@ -23,9 +23,12 @@ function Plugin(options) {
 
   // set output info
   this.crxName = this.options.name + ".crx";
+  this.zipName = this.options.name + ".zip";
   this.crxFile = join(this.outputPath, this.crxName);
+  this.zipFile = join(this.outputPath, this.zipName);
   this.updateFile = join(this.outputPath, this.options.updateFilename);
   this.updateUrl = this.options.updateUrl + "/" + this.options.updateFilename;
+  this.crxUrl = this.options.updateUrl + "/" + this.crxName;
 }
 
 // hook into webpack
@@ -49,12 +52,14 @@ Plugin.prototype.package = async function(resolve, reject) {
   await crx3(files, {
       keyPath: self.keyFile,
       crxPath: self.crxFile,
+      zipPath: self.zipFile,
       xmlPath: self.updateFile,
-      crxURL: self.updateUrl
+      crxURL: self.crxUrl
   });
 
   self.logger.info('wrote updateFile to ' + self.updateFile);
   self.logger.info('wrote crxFile to ' + self.crxFile);
+  self.logger.info('wrote zipFile to ' + self.zipFile);
 }
 
 module.exports = Plugin;
