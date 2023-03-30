@@ -1,8 +1,7 @@
-var fs = require('fs');
 var path = require('path');
 var join = path.join;
 var mkdirp = require('mkdirp');
-var ChromeExtension = require('crx');
+var crx3 = require('crx3');
 
 function Plugin(options) {
   this.options = options || {};
@@ -27,55 +26,56 @@ function Plugin(options) {
   this.crxFile = join(this.outputPath, this.crxName);
   this.updateFile = join(this.outputPath, this.options.updateFilename);
   this.updateUrl = this.options.updateUrl + "/" + this.options.updateFilename;
-
-  // initiate crx
-  this.crx = new ChromeExtension({
-    privateKey: fs.readFileSync(this.keyFile),
-    codebase: this.options.updateUrl + '/' + this.crxName
-  });
 }
 
 // hook into webpack
 Plugin.prototype.apply = function(compiler) {
   var self = this;
   self.logger = compiler.getInfrastructureLogger('crx-webpack-plugin');
-  return compiler.hooks.done.tap('crx-webpack-plugin', function() {
-    self.package.call(self);
+  return compiler.hooks.done.tapAsync('crx-webpack-plugin', async function(params, callback) {
+    await self.package.call(self);
+    callback();
   });
 }
 
 // package the extension
-Plugin.prototype.package = function() {
+Plugin.prototype.package = async function(resolve, reject) {
   var self = this;
-  self.crx.load(self.contentPath).then(function() {
-    self.crx.pack().then(function(buffer) {
-      mkdirp(self.outputPath, function(err) {
-        if (err)
-        {
-          self.logger.error(err);
-          throw err
-        }
 
-        var updateXML = self.crx.generateUpdateXML();
-        fs.writeFile(self.updateFile, updateXML, function(err) {
-          if (err) {
-            self.logger.error(err);
-            throw err
-          }
+  await mkdirp(self.outputPath);
 
-          self.logger.info('wrote updateFile to ' + self.updateFile);
-          fs.writeFile(self.crxFile, buffer, function(err) {
-            if (err) {
-              self.logger.error(err);
-              throw err;
-            }
-            
-            self.logger.info('wrote crxFile to ' + self.crxFile);
-          });
-        });
-      });
-    });
+  var files = [path.resolve(self.contentPath, 'manifest.json')];
+
+  await crx3(files, {
+      keyPath: self.keyFile,
+      crxPath: self.crxFile,
+      xmlPath: self.updateFile,
+      crxURL: self.updateUrl
   });
+
+  self.logger.info('wrote updateFile to ' + self.updateFile);
+  self.logger.info('wrote crxFile to ' + self.crxFile);
 }
 
 module.exports = Plugin;
+
+///// TESTING AREA
+/*
+module.parent = {};
+module.parent.filename = 'D:\\Dev\\realmonitor\\crawler-extension-v2\\webpack\\webpack.config.js';
+var p = new Plugin({
+  keyFile: 'crx_key.pem',
+  contentPath: '../dist',
+  outputPath: '../crx',
+  name: 'realmonitor-data-collector-1.1.0',
+  updateUrl: 'https://storage.googleapis.com/realmonitor-data-collector-extension',
+});
+p.logger = {
+  info: console.log,
+  error: console.error
+};
+(async function() {
+  await p.package();
+  console.log("done");
+})();
+*/
